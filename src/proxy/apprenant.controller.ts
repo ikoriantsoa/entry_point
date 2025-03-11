@@ -1,9 +1,20 @@
-import { Body, Controller, Headers, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  Post,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { Client, ClientProxy, Transport } from '@nestjs/microservices';
 import { KeycloakService } from 'src/keycloak/keycloak.service';
 import { Roles } from 'src/keycloak/roles.decorator';
 import { RolesGuard } from 'src/keycloak/roles.guard';
 import { CreateApprenantDto } from './dto/dtoApprenant/CreateApprenant.dto';
+import { Observable } from 'rxjs';
+import { ICreateWebinaireApprenantDto } from './dto/dtoWebinaireApprenant/CreateWebinaireApprenant.dto';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 @Controller('apprenant')
 export class ApprenantController {
@@ -18,18 +29,24 @@ export class ApprenantController {
 
   constructor(private readonly keycloakService: KeycloakService) {}
 
+  /**
+   * Cette méthode permet de créer d'envoyer un message au microservice apprenant
+   * @param {string} authHeader - Contint le token qui permet de vérifier l'apprenant
+   * @param {CreateApprenantDto} createApprenantDto - Contient les informations de l'apprenant
+   * @returns {Observable<any>} - Retourne le message à envoyer au bon contrôleur du microservice apprenant
+   */
   @Post()
   @UseGuards(RolesGuard)
   @Roles('anonyme')
   public createApprenant(
     @Headers('authorization') authHeader: string,
     @Body() createApprenantDto: CreateApprenantDto,
-  ) {
-    const token = authHeader.split(' ')[1];
+  ): Observable<any> {
+    const token: string = authHeader.split(' ')[1];
 
-    const sub = this.keycloakService.extractIdToken(token);
-    const username = this.keycloakService.extractUsername(token);
-    const email = this.keycloakService.extractEmail(token);
+    const sub: string = this.keycloakService.extractIdToken(token);
+    const username: string = this.keycloakService.extractUsername(token);
+    const email: string = this.keycloakService.extractEmail(token);
 
     const dataApprenant = {
       keycloak_id: sub,
@@ -48,5 +65,48 @@ export class ApprenantController {
     }
 
     return this.apprenantClientProxy.send('createApprenant', dataApprenant);
+  }
+
+  @Post('webinaire')
+  @UseGuards(RolesGuard)
+  @Roles('apprenant')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'image', maxCount: 1 },
+      { name: 'source', maxCount: 1 },
+    ]),
+  )
+  public createWebinaire(
+    @Headers('authorization') authHeaders: string,
+    @Body() createWebinaireApprenant: ICreateWebinaireApprenantDto,
+    @UploadedFiles()
+    files: {
+      image: Express.Multer.File[];
+      source: Express.Multer.File[];
+    },
+  ) {
+    const token: string = authHeaders.split(' ')[1];
+    const keycloak_id_auteur: string =
+      this.keycloakService.extractIdToken(token);
+    
+      console.log('dto: ', createWebinaireApprenant);
+
+    console.log('image: ', files.image);
+    console.log('source: ', files.source);
+    
+    
+    const dataWebinaire = {
+      keycloak_id_auteur: keycloak_id_auteur,
+      titre: createWebinaireApprenant.titre,
+      categorie: createWebinaireApprenant.categorie,
+      type: createWebinaireApprenant.type,
+      niveau: createWebinaireApprenant.niveau,
+      image: files.image?.[0],
+      source: files.source?.[0],
+    };
+
+    console.log(dataWebinaire);
+
+    return this.apprenantClientProxy.send('createWebinaire', dataWebinaire);
   }
 }
