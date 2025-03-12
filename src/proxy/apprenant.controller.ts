@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   Post,
   UploadedFiles,
@@ -76,6 +77,8 @@ export class ApprenantController {
       { name: 'source', maxCount: 1 },
     ]),
   )
+
+
   public createWebinaire(
     @Headers('authorization') authHeaders: string,
     @Body() createWebinaireApprenant: ICreateWebinaireApprenantDto,
@@ -88,7 +91,6 @@ export class ApprenantController {
     const token: string = authHeaders.split(' ')[1];
     const keycloak_id_auteur: string =
       this.keycloakService.extractIdToken(token);
-    
       console.log('dto: ', createWebinaireApprenant);
 
     console.log('image: ', files.image);
@@ -108,5 +110,27 @@ export class ApprenantController {
     console.log(dataWebinaire);
 
     return this.apprenantClientProxy.send('createWebinaire', dataWebinaire);
+  }
+
+  @Get('webinaire/my_webinaire')
+  @UseGuards(RolesGuard)
+  @Roles('apprenant')
+  public getAllWebinaireAlternant(
+    @Headers('authorization') authHeader: string,
+  ) {
+    const token: string = authHeader.split(' ')[1];
+    const keycloak_id_auteur: string =
+      this.keycloakService.extractIdToken(token);
+    return this.apprenantClientProxy.send(
+      'getAllWebinaireApprenant',
+      keycloak_id_auteur,
+    );
+  }
+
+  @Get('webinaire/all')
+  @UseGuards(RolesGuard)
+  @Roles('apprenant')
+  public getAllWebinaire() {
+    return this.apprenantClientProxy.send('getAllWebinaire', {});
   }
 }
