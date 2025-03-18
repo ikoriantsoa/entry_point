@@ -3,8 +3,10 @@ import {
   Controller,
   Get,
   Headers,
+  InternalServerErrorException,
   Param,
   Post,
+  UnauthorizedException,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -133,9 +135,29 @@ export class ApprenantController {
   }
 
   @Get('webinaire/:webinaireId')
-  @UseGuards(RolesGuard)
-  @Roles('apprenant')
-  public getWebinaireById(@Param('webinaireId') webinaireId: string) {
-    return this.apprenantClientProxy.send('getWebinaireById', webinaireId);
+@UseGuards(RolesGuard)
+@Roles('apprenant')
+public async getWebinaireById(
+  @Headers('authorization') authHeader: string,
+  @Param('webinaireId') webinaireId: string,
+) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new UnauthorizedException('Token manquant ou invalide');
   }
+
+  const token: string = authHeader.split(' ')[1];
+  let keycloak_id_auteur: string;
+
+  try {
+    keycloak_id_auteur = this.keycloakService.extractIdToken(token);
+  } catch (error) {
+    throw new UnauthorizedException('Échec de la validation du token');
+  }
+
+  try {
+    return await this.apprenantClientProxy.send('getWebinaireById', { webinaireId, keycloak_id_auteur }).toPromise();
+  } catch (error) {
+    throw new InternalServerErrorException('Erreur lors de la récupération du webinaire');
+  }
+}
 }
