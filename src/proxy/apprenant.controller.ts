@@ -19,6 +19,7 @@ import { CreateApprenantDto } from './dto/dtoApprenant/CreateApprenant.dto';
 import { Observable } from 'rxjs';
 import { ICreateWebinaireApprenantDto } from './dto/dtoWebinaireApprenant/CreateWebinaireApprenant.dto';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { LoggerService } from '../logger/logger.service';
 
 @Controller('apprenant')
 export class ApprenantController {
@@ -31,7 +32,12 @@ export class ApprenantController {
   })
   private apprenantClientProxy: ClientProxy;
 
-  constructor(private readonly keycloakService: KeycloakService) {}
+  constructor(
+    private readonly keycloakService: KeycloakService,
+    private readonly logger: LoggerService,
+  ) {
+    this.logger.setContext(ApprenantController.name);
+  }
 
   /**
    * Cette méthode permet de créer d'envoyer un message au microservice apprenant
@@ -46,6 +52,7 @@ export class ApprenantController {
     @Headers('authorization') authHeader: string,
     @Body() createApprenantDto: CreateApprenantDto,
   ): Observable<any> {
+    this.logger.log(`Appel de la méthode d'insertion d'un nouveau apprenant`);
     const token: string = authHeader.split(' ')[1];
 
     const sub: string = this.keycloakService.extractIdToken(token);
@@ -60,14 +67,18 @@ export class ApprenantController {
       firstname: createApprenantDto.firstname,
       adresse: createApprenantDto.adresse,
     };
+    this.logger.log(`Enregistrement réussi des données d'un utilisateur`);
 
     try {
       this.keycloakService.updateUserRoles(sub!, 'apprenant');
+      this.logger.log(`Mise à jour du rôle de l'utilisateur id: ${sub} en 'apprenant'`);
     } catch (error) {
       console.log(error);
+      this.logger.error(`Utilisateur id: ${sub} - Erreur lors de la mise à jour du rôle | ${error}`);
+      
       throw new Error('Erreur lors de la mise à jour du rôle');
     }
-
+    this.logger.log(`Envoi des données de l'utilisateur ${sub} vers le contrôleur apprenant`);
     return this.apprenantClientProxy.send('createApprenant', dataApprenant);
   }
 
@@ -89,13 +100,10 @@ export class ApprenantController {
       source: Express.Multer.File[];
     },
   ) {
+    this.logger.log(`Appel de la méthode d'insertion d'un nouveau apprenant`);
     const token: string = authHeaders.split(' ')[1];
     const keycloak_id_auteur: string =
       this.keycloakService.extractIdToken(token);
-    console.log('dto: ', createWebinaireApprenant);
-
-    console.log('image: ', files.image);
-    console.log('source: ', files.source);
 
     const dataWebinaire = {
       keycloak_id_auteur: keycloak_id_auteur,
@@ -107,7 +115,8 @@ export class ApprenantController {
       source: files.source?.[0],
     };
 
-    console.log(dataWebinaire);
+    this.logger.log(`Enregistrement réussi des données d'un apprenant`);
+    this.logger.log(`Envoi des données de l'apprenant vers le contrôleur apprenant`);
 
     return this.apprenantClientProxy.send('createWebinaire', dataWebinaire);
   }
@@ -115,9 +124,11 @@ export class ApprenantController {
   @Get('webinaire/my_webinaire')
   @UseGuards(RolesGuard)
   @Roles('apprenant')
-  public getAllWebinaireAlternant(
+  public getAllWebinaireApprenant(
     @Headers('authorization') authHeader: string,
   ) {
+    this.logger.log(`Méthode pour voir tous les webinaires apprenants`);
+
     const token: string = authHeader.split(' ')[1];
     const keycloak_id_auteur: string =
       this.keycloakService.extractIdToken(token);
@@ -131,33 +142,42 @@ export class ApprenantController {
   @UseGuards(RolesGuard)
   @Roles('apprenant')
   public getAllWebinaire() {
+    this.logger.log(`Méthode pour voir tous les webinaires apprenants `);
     return this.apprenantClientProxy.send('getAllWebinaire', {});
   }
 
   @Get('webinaire/:webinaireId')
-@UseGuards(RolesGuard)
-@Roles('apprenant')
-public async getWebinaireById(
-  @Headers('authorization') authHeader: string,
-  @Param('webinaireId') webinaireId: string,
-) {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new UnauthorizedException('Token manquant ou invalide');
-  }
+  @UseGuards(RolesGuard)
+  @Roles('apprenant')
+  public async getWebinaireById(
+    @Headers('authorization') authHeader: string,
+    @Param('webinaireId') webinaireId: string,
+  ) {
+    this.logger.log(`Méthode pour voir un webinaire apprenant`);
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Token manquant ou invalide');
+    }
 
-  const token: string = authHeader.split(' ')[1];
-  let keycloak_id_auteur: string;
+    const token: string = authHeader.split(' ')[1];
+    let keycloak_id_auteur: string;
 
-  try {
-    keycloak_id_auteur = this.keycloakService.extractIdToken(token);
-  } catch (error) {
-    throw new UnauthorizedException('Échec de la validation du token');
-  }
+    try {
+      keycloak_id_auteur = this.keycloakService.extractIdToken(token);
+    } catch (error) {
+      this.logger.error('Échec de la validation du token');
+      throw new UnauthorizedException('Échec de la validation du token');
+    }
 
-  try {
-    return await this.apprenantClientProxy.send('getWebinaireById', { webinaireId, keycloak_id_auteur }).toPromise();
-  } catch (error) {
-    throw new InternalServerErrorException('Erreur lors de la récupération du webinaire');
+    try {
+      return await this.apprenantClientProxy
+        .send('getWebinaireById', { webinaireId, keycloak_id_auteur })
+        .toPromise();
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération du webinaire');
+      throw new InternalServerErrorException(
+        'Erreur lors de la récupération du webinaire',
+      );
+    }
   }
-}
 }

@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './keycloak/roles.guard';
 import { AuthMiddleware } from './keycloak/auth.midleware';
+import { LoggerModule } from './logger/logger.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthMiddleware } from './keycloak/auth.midleware';
     }),
     KeycloakModule,
     ProxyModule,
+    LoggerModule
   ],
   providers: [
     {

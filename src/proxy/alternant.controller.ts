@@ -14,6 +14,7 @@ import { KeycloakService } from 'src/keycloak/keycloak.service';
 import { Roles } from 'src/keycloak/roles.decorator';
 import { RolesGuard } from 'src/keycloak/roles.guard';
 import { ICreateWebinaireApprenantDto } from './dto/dtoWebinaireApprenant/CreateWebinaireApprenant.dto';
+import { LoggerService } from '../logger/logger.service';
 
 @Controller('alternant')
 export class AlternantController {
@@ -26,7 +27,9 @@ export class AlternantController {
   })
   private alternantClientProxy: ClientProxy;
 
-  constructor(private readonly keycloakService: KeycloakService) {}
+  constructor(private readonly keycloakService: KeycloakService, private readonly logger: LoggerService) {
+    this.logger.setContext(AlternantController.name);
+  }
 
   /**
    * @param {string} authHeaders - Cela contient le token de l'utilisateur
@@ -51,6 +54,7 @@ export class AlternantController {
       source: Express.Multer.File[];
     },
   ) {
+    this.logger.log(`Méthode pour la création d'un webinaire alternant`);
     const token: string = authHeaders.split(' ')[1];
     const keycloak_id_auteur: string =
       this.keycloakService.extractIdToken(token);
@@ -65,7 +69,7 @@ export class AlternantController {
       source: files.source?.[0],
     };
 
-    console.log(dataWebinaire);
+    this.logger.log(`Récupération des donnés pour la creéation d'un webinaire alternant`);
 
     return this.alternantClientProxy.send(
       'createWebinaireAlternant',
@@ -79,6 +83,7 @@ export class AlternantController {
   public getAllWebinaireAlternant(
     @Headers('authorization') authHeader: string,
   ) {
+    this.logger.log(`Méthode pour voir tous les webinaires d'un alternant`);
     const token: string = authHeader.split(' ')[1];
     const keycloak_id_auteur: string =
       this.keycloakService.extractIdToken(token);
@@ -92,6 +97,7 @@ export class AlternantController {
   @UseGuards(RolesGuard)
   @Roles('alternant')
   public getAllWebinaire() {
+    this.logger.log(`Métode pour voir tous les webinaires en global`);
     return this.alternantClientProxy.send('getAllWebinaire', {});
   }
 }
